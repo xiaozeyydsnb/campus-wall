@@ -125,6 +125,12 @@ body{
 .ci .cn{flex:0 0 auto;color:var(--brand);font-weight:700;font-size:12.5px;max-width:74px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-top:1px}
 .ci .cb{flex:1;word-break:break-word;white-space:pre-wrap}
+.ci .cdel{flex:0 0 auto;font-size:12px;color:var(--sub);align-self:flex-start;
+  padding:1px 6px;border-radius:8px;background:var(--soft)}
+.ci .cdel:active{color:#e5484d}
+.delp{margin-left:auto;width:26px;height:26px;padding:0;border:0;box-shadow:none;background:transparent;
+  color:var(--sub);display:flex;align-items:center;justify-content:center;border-radius:9px}
+.delp:active{color:#e5484d;background:var(--soft)}
 .ctip{font-size:12.5px;color:var(--faint);padding:6px 0;text-align:center}
 .cinput{display:flex;gap:8px;margin-top:9px}
 .cinput input{flex:1;border:1px solid var(--line);background:var(--card);color:var(--text);
@@ -284,6 +290,7 @@ var COL = { lost: 'rgba(245,160,79,.15)', deal: 'rgba(94,201,138,.15)', love: 'r
 var FON = { lost: '#c47a2c', deal: '#2f8f5b', love: '#d4567e', rant: '#5a6f96', help: '#7a5cc4' };
 
 var ICO_CHAT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.6a8.5 8.5 0 0 1-9.1 8.5 9 9 0 0 1-3.5-.7L3 21l1.4-4.1A8.5 8.5 0 0 1 12 3.1a8.5 8.5 0 0 1 9 8.5z"/></svg>';
+var ICO_DEL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>';
 var ICO_SHARE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 3.5v11"/><path d="m8 7.5 4-4 4 4"/></svg>';
 
 var $ = function (id) { return document.getElementById(id); };
@@ -293,6 +300,13 @@ var nick = $('nick'), toastEl = $('toast'), viewer = $('viewer'), viewimg = $('v
 var tabsEl = $('tabs'), chipsEl = $('chips'), sheetEl = $('sheet'), heroEl = $('hero');
 var timer, blob = null, busy = false, cur = '', pickTag = '', seenMem = '';
 var PAGE = 20, seen = {}, lastTs = null, hasMore = true, loadingMore = false, seq = 0, sentinel = null;
+/* 只在本机记录"我发过哪些 id"：服务端不回传 dev，所以删除按钮只对这些 id 出现 */
+function mineGet(k) { try { return JSON.parse(localStorage.getItem('wall_mine_' + k) || '[]'); } catch (e) { return []; } }
+function mineSet(k, a) { try { localStorage.setItem('wall_mine_' + k, JSON.stringify(a.slice(-300))); } catch (e) {} }
+function mineAdd(k, id) { var a = mineGet(k); if (a.indexOf(Number(id)) < 0) { a.push(Number(id)); mineSet(k, a); } }
+function mineHas(k, id) { return mineGet(k).indexOf(Number(id)) >= 0; }
+function mineDrop(k, id) { mineSet(k, mineGet(k).filter(function (x) { return Number(x) !== Number(id); })); }
+
 var VID = (function () {
   var v = '';
   try { v = localStorage.getItem('wall_vid') || ''; } catch (e) {}
@@ -435,7 +449,7 @@ function skeleton() {
 function postHtml(p) {
   var n = p.nick || '匿名';
   var long = p.body && p.body.length > 120;
-  var cnt = (p.comments && p.comments[0] && p.comments[0].count) || 0;
+  var cnt = p.comments_count || 0;
   return '<article class="post' + (p.vip ? ' vip' : '') + '" data-post="' + p.id + '">' +
     '<div class="head">' +
       (p.vip
@@ -445,6 +459,7 @@ function postHtml(p) {
         '<span>' + ago(p.created_at) + '</span></div>' +
       (p.vip ? '<span class="vb">墙主</span>' : '') +
       (p.tag && NAME[p.tag] ? '<span class="tag" style="background:' + COL[p.tag] + ';color:' + FON[p.tag] + '">' + NAME[p.tag] + '</span>' : '') +
+      (mineHas('p', p.id) ? '<button class="delp" data-delp="' + p.id + '" aria-label="删除这条">' + ICO_DEL + '</button>' : '') +
     '</div>' +
     (p.body ? '<div class="body' + (long ? ' clamp' : '') + '">' + esc(p.body) + '</div>' : '') +
     (long ? '<div class="more" data-expand="1">展开全文</div>' : '') +
@@ -542,13 +557,15 @@ function appendRows(rows) {
 function loadComments(pid, box) {
   var l = box.querySelector('[data-list]');
   l.innerHTML = '<div class="ctip">加载中…</div>';
-  api('comments?select=nick,body,created_at&post_id=eq.' + pid + '&order=created_at.asc&limit=200')
+  api('comments?select=id,nick,body,created_at&post_id=eq.' + pid + '&order=created_at.asc&limit=200')
     .then(function (rows) {
       if (!rows || !rows.length) { l.innerHTML = '<div class="ctip">还没有评论，说第一句</div>'; return; }
       var h = '';
       for (var i = 0; i < rows.length; i++) {
         h += '<div class="ci"><span class="cn">' + esc(rows[i].nick || '匿名') + '</span>' +
-             '<span class="cb">' + esc(rows[i].body) + '</span></div>';
+             '<span class="cb">' + esc(rows[i].body) + '</span>' +
+             (mineHas('c', rows[i].id) ? '<span class="cdel" role="button" tabindex="0" data-delc="' + rows[i].id + '" data-pid="' + pid + '">删</span>' : '') +
+             '</div>';
       }
       l.innerHTML = h;
     })
@@ -566,7 +583,8 @@ function sendComment(pid, box) {
     method: 'POST', prefer: 'return=minimal',
     body: { p_pid: Number(pid), p_nick: n, p_body: v, p_dev: VID }
   })
-    .then(function () {
+    .then(function (res) {
+      if (res && res.id) mineAdd('c', res.id);
       inp.value = '';
       inp.disabled = false;
       loadComments(pid, box);
@@ -585,7 +603,7 @@ function sendComment(pid, box) {
     });
 }
 function queryStr() {
-  var q = 'posts?select=id,created_at,nick,body,image_url,tag,vip,comments(count)' +
+  var q = 'posts?select=id,created_at,nick,body,image_url,tag,vip,comments_count' +
           '&status=eq.published&order=created_at.desc&limit=' + PAGE;
   if (cur) q += '&tag=eq.' + encodeURIComponent(cur);
   if (lastTs) q += '&created_at=lt.' + encodeURIComponent(lastTs);
@@ -724,12 +742,13 @@ send.addEventListener('click', function () {
           body: { s: vk(), b: v, tg: pickTag || null, img: url, n: n, dv: VID }
         });
       }
-      return api('posts', {
+      return api('rpc/submit_post', {
         method: 'POST', prefer: 'return=minimal',
-        body: { nick: n, body: v, image_url: url, tag: pickTag || null, dev: VID }
+        body: { p_nick: n, p_body: v, p_img: url, p_tag: pickTag || null, p_dev: VID }
       });
     })
-    .then(function () {
+    .then(function (res) {
+      if (res && res.id) mineAdd('p', res.id);
       var hadImg = !!blob;
       txt.value = ''; count.textContent = '0/500'; clearImg(); pickTag = ''; buildChips();
       closeSheet();
@@ -775,6 +794,44 @@ list.addEventListener('click', function (e) {
     var pid2 = t.dataset.send;
     var box2 = list.querySelector('[data-box="' + pid2 + '"]');
     if (box2) sendComment(pid2, box2);
+    return;
+  }
+  var dp = t.closest ? t.closest('[data-delp]') : null;
+  if (dp) {
+    var pd = dp.dataset.delp;
+    if (!confirm('删除后就没法恢复了，确定删除？')) return;
+    dp.disabled = true;
+    api('rpc/delete_own_post', { method: 'POST', prefer: 'return=minimal', body: { p_id: Number(pd), p_dev: VID } })
+      .then(function () {
+        mineDrop('p', pd);
+        var art = list.querySelector('[data-post="' + pd + '"]');
+        if (art) art.parentNode.removeChild(art);
+        toast('已删除');
+      })
+      .catch(function (e) { dp.disabled = false; toast('删不掉：' + friendly(e.message), 3200); });
+    return;
+  }
+  var dc = t.closest ? t.closest('[data-delc]') : null;
+  if (dc) {
+    var cid = dc.dataset.delc, cp = dc.dataset.pid;
+    if (!confirm('删除这条评论？')) return;
+    api('rpc/delete_own_comment', { method: 'POST', prefer: 'return=minimal', body: { p_id: Number(cid), p_dev: VID } })
+      .then(function () {
+        mineDrop('c', cid);
+        var box3 = list.querySelector('[data-box="' + cp + '"]');
+        if (box3) loadComments(cp, box3);
+        var card3 = list.querySelector('[data-post="' + cp + '"]');
+        var lab3 = card3 ? card3.querySelector('[data-cmt]') : null;
+        if (lab3) {
+          var sp3 = lab3.querySelector('span');
+          var mm3 = /(\d+)/.exec((sp3 || lab3).textContent);
+          var nx3 = (mm3 ? Math.max(+mm3[1] - 1, 0) : 0);
+          var tx3 = nx3 ? '评论 ' + nx3 : '评论';
+          if (sp3) sp3.textContent = tx3; else lab3.textContent = tx3;
+        }
+        toast('评论已删除');
+      })
+      .catch(function (e) { toast('删不掉：' + friendly(e.message), 3200); });
     return;
   }
   var shBtn = t.closest ? t.closest('[data-share]') : null;
