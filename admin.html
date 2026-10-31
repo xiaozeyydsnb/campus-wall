@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111318">
+<title>山高校园墙 · 管理</title>
+<style>
+:root{--bg:#0e1013;--card:#181b20;--text:#e9ecf1;--sub:#7f8794;--line:#24282f;--blue:#5b96ff;--red:#ef5b5b;--green:#3fbf72;--amber:#e0b768;--purple:#a983ef}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+header{padding:calc(12px + env(safe-area-inset-top)) 16px 12px;font-weight:700;font-size:17px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+header span{font-size:13px;font-weight:400;color:var(--sub)}
+.wrap{padding:14px 12px 0}
+#gate{background:var(--card);border-radius:16px;padding:16px;margin-top:6px}
+#gate input{width:100%;background:#0b0d10;border:1px solid var(--line);color:var(--text);border-radius:11px;padding:12px;font-size:16px;margin:10px 0 12px;outline:0}
+button{border:0;border-radius:11px;font-family:inherit;font-size:15px;font-weight:600;padding:11px 18px}
+#go{background:var(--blue);color:#fff;width:100%}
+
+.nbox{background:var(--card);border-radius:14px;padding:14px;margin-bottom:14px;border:1px solid #33290f}
+.nbox .ttl{font-size:13px;color:var(--amber);font-weight:600;margin-bottom:3px}
+.nbox .hint{font-size:12px;color:var(--sub);margin-bottom:9px;line-height:1.5}
+.nbox textarea{
+  width:100%;background:#0b0d10;border:1px solid var(--line);color:var(--text);
+  border-radius:11px;padding:11px;font:15px/1.6 inherit;outline:0;min-height:74px;resize:vertical;
+  font-family:inherit;
+}
+.nrow{display:flex;gap:8px;margin-top:9px}
+#nsave{background:var(--amber);color:#241d0f;flex:1}
+#nclear{background:#262a31;color:var(--sub);flex:0 0 auto}
+
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs span{flex:1;text-align:center;padding:10px;border-radius:11px;background:var(--card);color:var(--sub);font-size:14px}
+.tabs span.on{background:var(--blue);color:#fff}
+.post{background:var(--card);border-radius:14px;padding:14px;margin-bottom:10px}
+.meta{font-size:12px;color:var(--sub);margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.meta b{color:var(--text);font-weight:600}
+.tg{font-size:11px;padding:2px 7px;border-radius:8px;background:#242a33;color:#9fb0c9}
+.body{white-space:pre-wrap;word-break:break-word;margin-bottom:8px}
+.pic{width:100%;border-radius:10px;margin:6px 0 10px;display:block;max-height:340px;object-fit:cover}
+.acts{display:flex;gap:8px;margin-top:6px}
+.acts button{flex:1;font-size:14px;padding:10px}
+.pass{background:var(--green);color:#fff}
+.del{background:#3a1c1c;color:var(--red)}
+.empty{text-align:center;color:var(--sub);padding:48px 0;font-size:14px}
+#toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:rgba(40,44,52,.95);color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:99;max-width:80%;text-align:center}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header>山高校园墙 · 管理 <span id="out">退出</span></header>
+<div class="wrap">
+  <div id="gate">
+    <div>输入管理口令</div>
+    <input id="pw" type="password" placeholder="口令" autocomplete="off">
+    <button id="go">进入</button>
+  </div>
+  <div id="main" style="display:none">
+    <div class="nbox">
+      <div class="ttl">📢 页面公告</div>
+      <div class="hint">写在这里的内容会显示在主页最上方，所有人都能看到。留空并保存 = 撤掉公告。</div>
+      <textarea id="nb" placeholder="比如：本周五食堂三楼停业一天"></textarea>
+      <div class="nrow">
+        <button id="nsave">保存公告</button>
+        <button id="nclear">清空</button>
+      </div>
+    </div>
+    <div class="nbox" style="border-color:#352a4d">
+      <div class="ttl" style="color:var(--purple)">💬 弹窗公告</div>
+      <div class="hint">打开主页时会弹出一个窗口显示这段文字，点「知道了」才消失。适合放重要提醒、活动、规则。留空并保存 = 关闭弹窗。<br>改一次内容，所有人会重新看到一次。</div>
+      <textarea id="fb" placeholder="比如：本周五晚 8 点辩论赛决赛，体育馆三楼，欢迎来玩"></textarea>
+      <div class="nrow">
+        <button id="fsave" style="background:var(--purple);color:#1a1024;flex:1">保存弹窗</button>
+        <button id="fclear">清空</button>
+      </div>
+    </div>
+    <div class="tabs"><span data-t="pending" class="on">待审</span><span data-t="published">已发布</span></div>
+    <div id="list"></div>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+var SB = 'https://gfzatnioffikxmddljis.supabase.co';
+var KEY = 'sb_publishable_NlJVDZQZi2eolG3vYT6Abw_1b3YwCEW';
+var $ = function (i) { return document.getElementById(i); };
+var pw = '', cur = 'pending', timer;
+
+function toast(m, ms) {
+  var t = $('toast'); t.textContent = m; t.className = 'on';
+  clearTimeout(timer); timer = setTimeout(function () { t.className = ''; }, ms || 2000);
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function rpc(act, pid) {
+  return fetch(SB + '/rest/v1/rpc/admin', {
+    method: 'POST',
+    headers: { 'apikey': KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ s: pw, act: act, pid: pid || null })
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
+      return t ? JSON.parse(t) : null;
+    });
+  });
+}
+function saveNotice(body) {
+  return fetch(SB + '/rest/v1/rpc/set_notice', {
+    method: 'POST',
+    headers: { 'apikey': KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ s: pw, b: body })
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
+      return t;
+    });
+  });
+}
+function loadNotice() {
+  fetch(SB + '/rest/v1/notices?select=body&order=created_at.desc&limit=1', { headers: { 'apikey': KEY } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (rows) { if (rows && rows.length) $('nb').value = rows[0].body || ''; })
+    .catch(function () {});
+}
+function savePopup(body) {
+  return fetch(SB + '/rest/v1/rpc/set_popup', {
+    method: 'POST',
+    headers: { 'apikey': KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ s: pw, b: body })
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
+      return t;
+    });
+  });
+}
+function loadPopup() {
+  fetch(SB + '/rest/v1/popups?select=body&order=created_at.desc&limit=1', { headers: { 'apikey': KEY } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (rows) { if (rows && rows.length) $('fb').value = rows[0].body || ''; })
+    .catch(function () {});
+}
+function delImg(url) {
+  if (!url) return Promise.resolve();
+  var i = url.indexOf('/wall/');
+  if (i < 0) return Promise.resolve();
+  var name = url.slice(i + 6);
+  return fetch(SB + '/storage/v1/object/wall/' + name, {
+    method: 'DELETE', headers: { 'apikey': KEY }
+  }).catch(function () {});
+}
+function when(iso) {
+  var d = new Date(iso), p = function (n) { return n < 10 ? '0' + n : n; };
+  return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+var TAGN = { lost: '失物', deal: '二手', love: '表白', rant: '吐槽', help: '求助' };
+function render(rows) {
+  var box = $('list');
+  if (!rows || !rows.length) {
+    box.innerHTML = '<div class="empty">' + (cur === 'pending' ? '没有待审的，干净' : '还没有已发布的帖子') + '</div>';
+    return;
+  }
+  var h = '';
+  for (var i = 0; i < rows.length; i++) {
+    var p = rows[i];
+    h += '<div class="post" data-id="' + p.id + '">' +
+      '<div class="meta"><b>' + esc(p.nick || '匿名') + '</b><span>#' + p.id + '</span><span>' + when(p.created_at) + '</span>' +
+      (p.tag && TAGN[p.tag] ? '<span class="tg">' + TAGN[p.tag] + '</span>' : '') + '</div>';
+    if (p.body) h += '<div class="body">' + esc(p.body) + '</div>';
+    if (p.image_url) h += '<img class="pic" src="' + esc(p.image_url) + '">';
+    h += '<div class="acts">' +
+      (cur === 'pending' ? '<button class="pass" data-a="pass" data-i="' + p.id + '">通过</button>' : '') +
+      '<button class="del" data-a="del" data-i="' + p.id + '" data-u="' + esc(p.image_url || '') + '">删除</button>' +
+      '</div></div>';
+  }
+  box.innerHTML = h;
+}
+function load() {
+  $('list').innerHTML = '<div class="empty">加载中…</div>';
+  rpc(cur).then(render).catch(function (e) {
+    $('list').innerHTML = '<div class="empty">' + esc(String(e.message).slice(0, 120)) + '</div>';
+  });
+}
+$('go').addEventListener('click', function () {
+  pw = $('pw').value.trim();
+  if (!pw) { toast('先输口令'); return; }
+  try { sessionStorage.setItem('wall_pw', pw); } catch (e) {}
+  rpc('pending').then(function (rows) {
+    $('gate').style.display = 'none';
+    $('main').style.display = 'block';
+    render(rows);
+    loadNotice();
+    loadPopup();
+  }).catch(function (e) {
+    toast('口令不对或没建好', 3000);
+  });
+});
+$('out').addEventListener('click', function () {
+  pw = '';
+  try { sessionStorage.removeItem('wall_pw'); } catch (e) {}
+  $('main').style.display = 'none';
+  $('gate').style.display = 'block';
+  $('pw').value = '';
+});
+$('nsave').addEventListener('click', function () {
+  var b = $('nb').value.trim();
+  $('nsave').disabled = true;
+  saveNotice(b).then(function () {
+    toast(b ? '公告已保存' : '公告已撤下');
+    $('nsave').disabled = false;
+  }).catch(function (e) {
+    toast('失败：' + String(e.message).slice(0, 60), 3500);
+    $('nsave').disabled = false;
+  });
+});
+$('nclear').addEventListener('click', function () { $('nb').value = ''; });
+$('fsave').addEventListener('click', function () {
+  var b = $('fb').value.trim();
+  $('fsave').disabled = true;
+  savePopup(b).then(function () {
+    toast(b ? '弹窗已保存' : '弹窗已关闭');
+    $('fsave').disabled = false;
+  }).catch(function (e) {
+    toast('失败：' + String(e.message).slice(0, 60), 3500);
+    $('fsave').disabled = false;
+  });
+});
+$('fclear').addEventListener('click', function () { $('fb').value = ''; });
+document.querySelectorAll('.tabs span').forEach(function (s) {
+  s.addEventListener('click', function () {
+    document.querySelectorAll('.tabs span').forEach(function (x) { x.className = ''; });
+    s.className = 'on';
+    cur = s.dataset.t;
+    load();
+  });
+});
+$('list').addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t.dataset || !t.dataset.a) return;
+  var id = t.dataset.i, a = t.dataset.a, u = t.dataset.u;
+  t.disabled = true;
+  if (a === 'pass') {
+    rpc('pass', id).then(function () { toast('已通过'); load(); })
+      .catch(function (e) { toast('失败：' + String(e.message).slice(0, 40), 3000); t.disabled = false; });
+  } else {
+    if (!confirm('确定删除这条？删了就没了')) { t.disabled = false; return; }
+    delImg(u).then(function () { return rpc('del', id); })
+      .then(function () { toast('已删除'); load(); })
+      .catch(function (e) { toast('失败：' + String(e.message).slice(0, 40), 3000); t.disabled = false; });
+  }
+});
+try {
+  var saved = sessionStorage.getItem('wall_pw');
+  if (saved) { $('pw').value = saved; $('go').click(); }
+} catch (e) {}
+</script>
+</body>
+</html>
