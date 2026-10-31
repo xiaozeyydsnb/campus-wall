@@ -110,6 +110,18 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+function friendly(msg) {
+  var m = String(msg == null ? '' : msg);
+  try { var j = JSON.parse(m); if (j && j.message) m = j.message; } catch (x) {}
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return '网络不通，检查一下连接';
+  if (/row-level security/i.test(m)) return '没有权限，检查 RLS 策略是否按要求建好';
+  if (/duplicate key/i.test(m)) return '数据重复，刷新后重试';
+  if (/尝试次数过多/.test(m)) return '尝试次数太多了，等 10 分钟再说';
+  if (/wrong secret|口令/.test(m)) return '口令不对';
+  if (/JWT|apikey|401|403/i.test(m)) return '密钥失效，检查 KEY 有没有轮换';
+  if (/does not exist/i.test(m)) return '数据库还没建好，先跑 migrations';
+  return m.replace(/\s+/g, ' ').slice(0, 90) || '未知错误';
+}
 function rpc(act, pid) {
   return fetch(SB + '/rest/v1/rpc/admin', {
     method: 'POST',
@@ -158,58 +170,42 @@ function loadPopup() {
     .then(function (rows) { if (rows && rows.length) $('fb').value = rows[0].body || ''; })
     .catch(function () {});
 }
-function cnt(filter) {
-  return fetch(SB + '/rest/v1/posts?select=id&' + filter, {
-    method: 'HEAD', headers: { 'apikey': KEY, 'Prefer': 'count=exact' }
-  }).then(function (r) {
-    var c = r.headers.get('content-range') || '';
-    var t = c.split('/')[1];
-    return t && t !== '*' ? Number(t) : 0;
-  }).catch(function () { return 0; });
-}
 function loadStats() {
   var box = $('stats');
   box.innerHTML = '<div class="cell"><div class="n" style="font-size:15px;color:var(--sub)">读取中…</div></div>' +
                   '<div class="cell"><div class="n" style="font-size:15px;color:var(--sub)">读取中…</div></div>';
-  var today = new Date(); today.setHours(0, 0, 0, 0);
-  var pv = fetch(SB + '/rest/v1/visits?select=vid,created_at&limit=50000', { headers: { 'apikey': KEY } })
-    .then(function (r) { return r.ok ? r.json() : []; })
-    .catch(function () { return []; });
-  Promise.all([pv, cnt('status=eq.pending'), cnt('status=eq.published')])
-    .then(function (a) {
-      var rows = a[0] || [], pend = a[1], pub = a[2];
-      var av = {}, tv = {}, aOpen = rows.length, tOpen = 0;
-      for (var i = 0; i < rows.length; i++) {
-        var r = rows[i];
-        if (r.vid) av[r.vid] = 1;
-        if (r.created_at && new Date(r.created_at) >= today) {
-          tOpen++;
-          if (r.vid) tv[r.vid] = 1;
-        }
-      }
-      var tV = Object.keys(tv).length, aV = Object.keys(av).length;
-      box.innerHTML =
-        '<div class="cell c-blue"><div class="n">' + tV + '</div><div class="l">今日访客</div></div>' +
-        '<div class="cell c-blue"><div class="n">' + tOpen + '</div><div class="l">今日打开次数</div></div>' +
-        '<div class="cell"><div class="n">' + aV + '</div><div class="l">累计访客</div></div>' +
-        '<div class="cell"><div class="n">' + aOpen + '</div><div class="l">累计打开次数</div></div>' +
-        '<div class="cell c-amber"><div class="n">' + pend + '</div><div class="l">待审</div></div>' +
-        '<div class="cell c-green"><div class="n">' + pub + '</div><div class="l">已发布</div></div>';
-    })
-    .catch(function (e) {
-      box.innerHTML = '<div class="cell"><div class="n" style="font-size:14px;color:var(--red)">读不到：' +
-        esc(String(e.message).slice(0, 40)) + '</div></div>';
+  fetch(SB + '/rest/v1/rpc/stats', {
+    method: 'POST',
+    headers: { 'apikey': KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ s: pw })
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
+      return t ? JSON.parse(t) : {};
     });
+  }).then(function (d) {
+    var n = function (k) { return Number(d[k] || 0); };
+    box.innerHTML =
+      '<div class="cell c-blue"><div class="n">' + n('visit_today') + '</div><div class="l">今日访客</div></div>' +
+      '<div class="cell c-blue"><div class="n">' + n('visit_rows_today') + '</div><div class="l">今日打开次数</div></div>' +
+      '<div class="cell"><div class="n">' + n('visitors') + '</div><div class="l">累计访客</div></div>' +
+      '<div class="cell"><div class="n">' + n('visits') + '</div><div class="l">累计打开次数</div></div>' +
+      '<div class="cell c-amber"><div class="n">' + n('pending') + '</div><div class="l">待审</div></div>' +
+      '<div class="cell c-green"><div class="n">' + n('published') + '</div><div class="l">已发布</div></div>' +
+      '<div class="cell"><div class="n">' + n('comments') + '</div><div class="l">评论</div></div>' +
+      '<div class="cell"><div class="n">' + n('images') + '</div><div class="l">图片</div></div>' +
+      '<div class="cell"><div class="n">' + n('today') + '</div><div class="l">今日新增</div></div>' +
+      '<div class="cell"><div class="n">' + n('week') + '</div><div class="l">近 7 天</div></div>' +
+      '<div class="cell"><div class="n">' + n('vip') + '</div><div class="l">金标</div></div>' +
+      '<div class="cell"><div class="n">' + n('posts') + '</div><div class="l">帖子总数</div></div>';
+  }).catch(function (e) {
+    box.innerHTML = '<div class="cell"><div class="n" style="font-size:14px;color:var(--red)">读不到：' +
+      esc(friendly(e.message)) + '</div></div>';
+  });
 }
-function delImg(url) {
-  if (!url) return Promise.resolve();
-  var i = url.indexOf('/wall/');
-  if (i < 0) return Promise.resolve();
-  var name = url.slice(i + 6);
-  return fetch(SB + '/storage/v1/object/wall/' + name, {
-    method: 'DELETE', headers: { 'apikey': KEY }
-  }).catch(function () {});
-}
+// 删图已在 admin(s,'del',id) 里用 SECURITY DEFINER 做掉了（顺带删 storage 对象），
+// 前端不再直连 storage DELETE —— 匿名 DELETE 策略必须关掉，否则等于开了后门。
+function delImg() { return Promise.resolve(); }
 function when(iso) {
   var d = new Date(iso), p = function (n) { return n < 10 ? '0' + n : n; };
   return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
@@ -228,7 +224,7 @@ function render(rows) {
       '<div class="meta"><b>' + esc(p.nick || '匿名') + '</b><span>#' + p.id + '</span><span>' + when(p.created_at) + '</span>' +
       (p.tag && TAGN[p.tag] ? '<span class="tg">' + TAGN[p.tag] + '</span>' : '') + '</div>';
     if (p.body) h += '<div class="body">' + esc(p.body) + '</div>';
-    if (p.image_url) h += '<img class="pic" src="' + esc(p.image_url) + '">';
+    if (p.image_url) h += '<img class="pic" loading="lazy" decoding="async" alt="附图" src="' + esc(p.image_url) + '">';
     h += '<div class="acts">' +
       (cur === 'pending' ? '<button class="pass" data-a="pass" data-i="' + p.id + '">通过</button>' : '') +
       '<button class="del" data-a="del" data-i="' + p.id + '" data-u="' + esc(p.image_url || '') + '">删除</button>' +
@@ -239,7 +235,7 @@ function render(rows) {
 function load() {
   $('list').innerHTML = '<div class="empty">加载中…</div>';
   rpc(cur).then(render).catch(function (e) {
-    $('list').innerHTML = '<div class="empty">' + esc(String(e.message).slice(0, 120)) + '</div>';
+    $('list').innerHTML = '<div class="empty">' + esc(friendly(e.message)) + '</div>';
   });
 }
 $('go').addEventListener('click', function () {
@@ -254,7 +250,7 @@ $('go').addEventListener('click', function () {
     loadPopup();
     loadStats();
   }).catch(function (e) {
-    toast('口令不对或没建好', 3000);
+    toast(friendly(e.message) === '未知错误' ? '口令不对或没建好' : friendly(e.message), 3000);
   });
 });
 $('out').addEventListener('click', function () {
@@ -272,7 +268,7 @@ $('nsave').addEventListener('click', function () {
     toast(b ? '公告已保存' : '公告已撤下');
     $('nsave').disabled = false;
   }).catch(function (e) {
-    toast('失败：' + String(e.message).slice(0, 60), 3500);
+    toast('失败：' + friendly(e.message), 3500);
     $('nsave').disabled = false;
   });
 });
@@ -284,12 +280,17 @@ $('fsave').addEventListener('click', function () {
     toast(b ? '弹窗已保存' : '弹窗已关闭');
     $('fsave').disabled = false;
   }).catch(function (e) {
-    toast('失败：' + String(e.message).slice(0, 60), 3500);
+    toast('失败：' + friendly(e.message), 3500);
     $('fsave').disabled = false;
   });
 });
 $('fclear').addEventListener('click', function () { $('fb').value = ''; });
 document.querySelectorAll('.tabs span').forEach(function (s) {
+  s.setAttribute('role', 'tab');
+  s.setAttribute('tabindex', '0');
+  s.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); s.click(); }
+  });
   s.addEventListener('click', function () {
     document.querySelectorAll('.tabs span').forEach(function (x) { x.className = ''; });
     s.className = 'on';
@@ -304,12 +305,12 @@ $('list').addEventListener('click', function (e) {
   t.disabled = true;
   if (a === 'pass') {
     rpc('pass', id).then(function () { toast('已通过'); load(); loadStats(); })
-      .catch(function (e) { toast('失败：' + String(e.message).slice(0, 40), 3000); t.disabled = false; });
+      .catch(function (e) { toast('失败：' + friendly(e.message), 3000); t.disabled = false; });
   } else {
     if (!confirm('确定删除这条？删了就没了')) { t.disabled = false; return; }
     delImg(u).then(function () { return rpc('del', id); })
       .then(function () { toast('已删除'); load(); loadStats(); })
-      .catch(function (e) { toast('失败：' + String(e.message).slice(0, 40), 3000); t.disabled = false; });
+      .catch(function (e) { toast('失败：' + friendly(e.message), 3000); t.disabled = false; });
   }
 });
 try {
