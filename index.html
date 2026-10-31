@@ -196,6 +196,15 @@ var pick = $('pick'), file = $('file'), pv = $('pv'), pvimg = $('pvimg'), pvc = 
 var nick = $('nick'), toastEl = $('toast'), viewer = $('viewer'), viewimg = $('viewimg');
 var tabsEl = $('tabs'), chipsEl = $('chips');
 var timer, blob = null, busy = false, cur = '', pickTag = '', seenMem = '';
+var VID = (function () {
+  var v = '';
+  try { v = localStorage.getItem('wall_vid') || ''; } catch (e) {}
+  if (!v) {
+    v = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    try { localStorage.setItem('wall_vid', v); } catch (e) {}
+  }
+  return v;
+})();
 
 var CLR = ['#f2789f','#f5a04f','#f6c445','#5ec98a','#4fb4d8','#6f8cf5','#a983ef','#ef7a6b'];
 
@@ -440,7 +449,7 @@ send.addEventListener('click', function () {
       send.textContent = '发送中';
       return api('posts', {
         method: 'POST', prefer: 'return=minimal',
-        body: { nick: n, body: v, image_url: url, tag: pickTag || null }
+        body: { nick: n, body: v, image_url: url, tag: pickTag || null, dev: VID }
       });
     })
     .then(function () {
@@ -450,7 +459,11 @@ send.addEventListener('click', function () {
       txt.blur();
       return load(true);
     })
-    .catch(function (e) { toast('失败：' + String(e.message).slice(0, 50), 3500); })
+    .catch(function (e) {
+      var m = String(e.message);
+      try { var j = JSON.parse(m); if (j.message) m = j.message; } catch (x) {}
+      toast('失败：' + m.slice(0, 60), 3500);
+    })
     .then(function () { busy = false; send.textContent = '发布'; });
 });
 
@@ -531,6 +544,12 @@ buildChips();
 loadNotice();
 loadPopup();
 load();
+
+fetch(SB + '/rest/v1/visits', {
+  method: 'POST',
+  headers: { 'apikey': KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+  body: JSON.stringify({ vid: VID })
+}).catch(function () {});
 </script>
 </body>
-  </html>
+</html>
