@@ -4,9 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f4f5f7">
+<meta name="description" content="山高校园墙：失物招领、出二手、表白、吐槽、求助，发帖经审核后公开。">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="山高校园墙">
+<meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<link rel="preconnect" href="https://gfzatnioffikxmddljis.supabase.co" crossorigin>
 <title>山高校园墙</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f7cf6'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%23fff' font-family='sans-serif'%3E%E5%B1%B1%3C/text%3E%3C/svg%3E">
 <style>
@@ -158,7 +163,7 @@ button:active{opacity:.75}
 <div class="top">
   <header>
     <h1 id="brand">山高校园墙</h1>
-    <span class="act" id="refresh">刷新</span>
+    <span class="act" id="refresh" role="button" tabindex="0">刷新</span>
   </header>
   <div class="tabs" id="tabs"></div>
 </div>
@@ -166,12 +171,12 @@ button:active{opacity:.75}
   <div class="notice" id="notice"><span class="ni">📢</span><div class="nt" id="ntext"></div></div>
   <div class="box">
     <div class="vmode" id="vmode"><span>👑</span><span>墙主模式，这条会带金色标识</span><u id="voff">退出</u></div>
-    <input class="nick" id="nick" maxlength="12" placeholder="昵称（可留空，默认匿名）">
-    <textarea id="txt" maxlength="500" placeholder="想说什么？失物招领、出二手、表白、吐槽…"></textarea>
+    <input class="nick" id="nick" maxlength="12" aria-label="昵称" placeholder="昵称（可留空，默认匿名）">
+    <textarea id="txt" aria-label="正文" maxlength="500" placeholder="想说什么？失物招领、出二手、表白、吐槽…"></textarea>
     <div class="chips" id="chips"></div>
     <div id="pv"><img id="pvimg"><span id="pvc">×</span></div>
     <div class="bar">
-      <span id="pick">＋ 图片</span>
+      <span id="pick" role="button" tabindex="0">＋ 图片</span>
       <span id="count">0/500</span>
       <button id="send">发布</button>
     </div>
@@ -208,6 +213,7 @@ var pick = $('pick'), file = $('file'), pv = $('pv'), pvimg = $('pvimg'), pvc = 
 var nick = $('nick'), toastEl = $('toast'), viewer = $('viewer'), viewimg = $('viewimg');
 var tabsEl = $('tabs'), chipsEl = $('chips');
 var timer, blob = null, busy = false, cur = '', pickTag = '', seenMem = '';
+var PAGE = 20, seen = {}, lastTs = null, hasMore = true, loadingMore = false, seq = 0, sentinel = null;
 var VID = (function () {
   var v = '';
   try { v = localStorage.getItem('wall_vid') || ''; } catch (e) {}
@@ -229,6 +235,24 @@ function toast(m, ms) {
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function friendly(e) {
+  var m = String((e && e.message) || e || '');
+  var j = null;
+  try { j = JSON.parse(m); } catch (x) {}
+  if (j && j.message) m = j.message;
+  if (/^\d+$/.test(m.trim())) m = '服务器返回 ' + m.trim();
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return '网络不稳定，重试一下';
+  if (/row-level security/i.test(m)) return '没有权限，操作被拦下了';
+  if (/duplicate key/i.test(m)) return '重复提交了，别急';
+  if (/尝试次数过多/.test(m)) return '试太多次了，过十分钟再来';
+  return (m.replace(/[{}"]/g, '').trim() || '出错了').slice(0, 60);
+}
+function syncTheme() {
+  var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)');
+  var m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.setAttribute('content', (mq && mq.matches) ? '#0e1013' : '#f4f5f7');
+  return mq;
 }
 function api(path, opt) {
   opt = opt || {};
@@ -306,14 +330,16 @@ function color(s) {
 function buildTabs() {
   var h = '';
   for (var i = 0; i < TAGS.length; i++) {
-    h += '<b data-k="' + TAGS[i][0] + '"' + (TAGS[i][0] === cur ? ' class="on"' : '') + '>' + TAGS[i][1] + '</b>';
+    h += '<b role="tab" tabindex="0" aria-selected="' + (TAGS[i][0] === cur) + '" data-k="' + TAGS[i][0] + '"' +
+      (TAGS[i][0] === cur ? ' class="on"' : '') + '>' + TAGS[i][1] + '</b>';
   }
   tabsEl.innerHTML = h;
 }
 function buildChips() {
   var h = '';
   for (var i = 1; i < TAGS.length; i++) {
-    h += '<b data-k="' + TAGS[i][0] + '"' + (TAGS[i][0] === pickTag ? ' class="on"' : '') + '>' + TAGS[i][1] + '</b>';
+    h += '<b role="button" tabindex="0" aria-selected="' + (TAGS[i][0] === pickTag) + '" data-k="' + TAGS[i][0] + '"' +
+      (TAGS[i][0] === pickTag ? ' class="on"' : '') + '>' + TAGS[i][1] + '</b>';
   }
   chipsEl.innerHTML = h;
 }
@@ -322,7 +348,81 @@ function skeleton() {
   for (var i = 0; i < 3; i++) h += '<div class="sk"><i></i><i></i><i></i></div>';
   list.innerHTML = h;
 }
+function postHtml(p) {
+  var n = p.nick || '匿名';
+  var long = p.body && p.body.length > 120;
+  var cnt = (p.comments && p.comments[0] && p.comments[0].count) || 0;
+  return '<div class="post' + (p.vip ? ' vip' : '') + '" data-post="' + p.id + '">' +
+    '<div class="meta">' +
+      (p.vip
+        ? '<span class="dot crown">👑</span>'
+        : '<span class="dot" style="background:' + color(n) + '">' + esc(n.slice(0, 1)) + '</span>') +
+      '<div class="who"><b' + (p.vip ? ' class="gold"' : '') + '>' + esc(n) + '</b><span>' + ago(p.created_at) + '</span></div>' +
+      (p.vip ? '<span class="vb">墙主</span>' : '') +
+      (p.tag && NAME[p.tag] ? '<span class="tg" style="background:' + COL[p.tag] + ';color:' + FON[p.tag] + '">' + NAME[p.tag] + '</span>' : '') +
+    '</div>' +
+    (p.body ? '<div class="body' + (long ? ' clamp' : '') + '">' + esc(p.body) + '</div>' : '') +
+    (long ? '<div class="more" data-expand="1">展开全文</div>' : '') +
+    (p.image_url ? '<img class="pic" loading="lazy" alt="附图" src="' + esc(p.image_url) + '" data-img="' + esc(p.image_url) + '">' : '') +
+    '<div class="foot">' +
+      '<span role="button" tabindex="0" data-cmt="' + p.id + '">' + (cnt ? '评论 ' + cnt : '评论') + '</span>' +
+      '<span role="button" tabindex="0" data-share="' + esc((p.body || '').slice(0, 80)) + '" data-pid="' + p.id + '">转发</span>' +
+    '</div>' +
+    '<div class="cbox" data-box="' + p.id + '">' +
+      '<div class="clist" data-list="' + p.id + '"></div>' +
+      '<div class="cinput">' +
+        '<input data-input="' + p.id + '" maxlength="200" aria-label="写评论" placeholder="说点什么…">' +
+        '<button data-send="' + p.id + '">发</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+function dropSentinel() {
+  if (sentinel && sentinel.parentNode) {
+    if (sentinel._io) sentinel._io.disconnect();
+    sentinel.parentNode.removeChild(sentinel);
+  }
+  sentinel = null;
+}
+function syncMore() {
+  if (!hasMore) { dropSentinel(); return; }
+  if (sentinel) return;
+  sentinel = document.createElement('div');
+  sentinel.className = 'ctip';
+  sentinel.style.cssText = 'text-align:center;padding:20px 0 28px';
+  sentinel.textContent = '上拉加载更多';
+  list.appendChild(sentinel);
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) {
+      if (es[0].isIntersecting) more();
+    }, { rootMargin: '400px 0px' });
+    io.observe(sentinel);
+    sentinel._io = io;
+  }
+}
+function fixClamp() {
+  var bs = list.querySelectorAll('.body.clamp');
+  for (var i = 0; i < bs.length; i++) {
+    if (bs[i].scrollHeight <= bs[i].clientHeight + 2) {
+      bs[i].classList.remove('clamp');
+      var m = bs[i].nextElementSibling;
+      if (m && m.getAttribute('data-expand')) m.style.display = 'none';
+    }
+  }
+}
+function jumpHash() {
+  var m = /^#p=(\d+)$/.exec(location.hash || '');
+  if (!m) return;
+  var el = list.querySelector('[data-post="' + m[1] + '"]');
+  if (!el) { toast('这条帖子可能已经被删了', 2400); return; }
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.style.transition = 'background .3s';
+  el.style.background = 'rgba(47,124,246,.09)';
+  setTimeout(function () { el.style.background = ''; }, 1800);
+}
 function render(rows) {
+  dropSentinel();
+  seen = {}; lastTs = null; hasMore = true;
   if (!rows || !rows.length) {
     var t = cur ? NAME[cur] : '';
     list.innerHTML = '<div class="empty"><div class="big">🧱</div>' +
@@ -331,49 +431,28 @@ function render(rows) {
       '</div>';
     return;
   }
-  var html = '';
-  for (var i = 0; i < rows.length; i++) {
-    var p = rows[i], n = p.nick || '匿名';
-    var long = p.body && p.body.length > 200;
-    html += '<div class="post' + (p.vip ? ' vip' : '') + '">' +
-      '<div class="meta">' +
-        (p.vip
-          ? '<span class="dot crown">👑</span>'
-          : '<span class="dot" style="background:' + color(n) + '">' + esc(n.slice(0, 1)) + '</span>') +
-        '<div class="who"><b' + (p.vip ? ' class="gold"' : '') + '>' + esc(n) + '</b><span>' + ago(p.created_at) + '</span></div>' +
-        (p.vip ? '<span class="vb">墙主</span>' : '') +
-        (p.tag && NAME[p.tag] ? '<span class="tg" style="background:' + COL[p.tag] + ';color:' + FON[p.tag] + '">' + NAME[p.tag] + '</span>' : '') +
-      '</div>';
-    if (p.body) html += '<div class="body' + (long ? ' clamp' : '') + '">' + esc(p.body) + '</div>';
-    if (long) html += '<div class="more" data-expand="1">展开全文</div>';
-    if (p.image_url) html += '<img class="pic" loading="lazy" src="' + esc(p.image_url) + '" data-img="' + esc(p.image_url) + '">';
-    html += '<div class="foot">' +
-      '<span data-cmt="' + p.id + '">评论</span>' +
-      '<span data-share="' + esc((p.body || '').slice(0, 80)) + '">转发</span>' +
-      '</div>';
-    html += '<div class="cbox" data-box="' + p.id + '">' +
-      '<div class="clist" data-list="' + p.id + '"></div>' +
-      '<div class="cinput">' +
-        '<input data-input="' + p.id + '" maxlength="200" placeholder="说点什么…">' +
-        '<button data-send="' + p.id + '">发</button>' +
-      '</div>' +
-      '</div>';
-    html += '</div>';
-  }
-  list.innerHTML = html;
-  countComments();
+  var h = '';
+  for (var i = 0; i < rows.length; i++) { seen[rows[i].id] = 1; h += postHtml(rows[i]); }
+  list.innerHTML = h;
+  lastTs = rows[rows.length - 1].created_at;
+  if (rows.length < PAGE) hasMore = false;
+  fixClamp();
+  jumpHash();
+  syncMore();
 }
-function countComments() {
-  api('comments?select=post_id&limit=2000').then(function (rows) {
-    if (!rows) return;
-    var c = {};
-    for (var i = 0; i < rows.length; i++) c[rows[i].post_id] = (c[rows[i].post_id] || 0) + 1;
-    var els = list.querySelectorAll('[data-cmt]');
-    for (var j = 0; j < els.length; j++) {
-      var id = els[j].dataset.cmt, n = c[id] || 0;
-      els[j].textContent = n ? '评论 ' + n : '评论';
-    }
-  }).catch(function () {});
+function appendRows(rows) {
+  dropSentinel();
+  var h = '';
+  for (var i = 0; i < rows.length; i++) {
+    if (seen[rows[i].id]) continue;
+    seen[rows[i].id] = 1;
+    h += postHtml(rows[i]);
+  }
+  if (rows.length) lastTs = rows[rows.length - 1].created_at;
+  if (rows.length < PAGE) hasMore = false;
+  if (h) list.insertAdjacentHTML('beforeend', h);
+  fixClamp();
+  syncMore();
 }
 function loadComments(pid, box) {
   var l = box.querySelector('[data-list]');
@@ -398,30 +477,61 @@ function sendComment(pid, box) {
   if (!v) { toast('写点什么'); return; }
   var n = nick.value.trim() || '匿名';
   inp.disabled = true;
-  api('comments', { method: 'POST', prefer: 'return=minimal', body: { post_id: Number(pid), nick: n, body: v } })
+  api('rpc/submit_comment', {
+    method: 'POST', prefer: 'return=minimal',
+    body: { p_pid: Number(pid), p_nick: n, p_body: v, p_dev: VID }
+  })
     .then(function () {
       inp.value = '';
       inp.disabled = false;
       loadComments(pid, box);
-      countComments();
+      var lab = box.parentNode ? box.parentNode.querySelector('[data-cmt]') : null;
+      if (lab) {
+        var mm = /(\d+)$/.exec(lab.textContent);
+        lab.textContent = '评论 ' + ((mm ? +mm[1] : 0) + 1);
+      }
       toast('评论成功');
     })
     .catch(function (e) {
       inp.disabled = false;
-      toast('失败：' + String(e.message).slice(0, 40), 3000);
+      toast('失败：' + friendly(e.message), 3000);
     });
 }
-function load(quiet) {
-  if (!quiet) skeleton();
-  var q = 'posts?select=id,created_at,nick,body,image_url,tag,vip&status=eq.published&order=created_at.desc&limit=100';
+function queryStr() {
+  var q = 'posts?select=id,created_at,nick,body,image_url,tag,vip,comments(count)' +
+          '&status=eq.published&order=created_at.desc&limit=' + PAGE;
   if (cur) q += '&tag=eq.' + encodeURIComponent(cur);
-  return api(q)
-    .then(function (rows) { render(rows); })
+  if (lastTs) q += '&created_at=lt.' + encodeURIComponent(lastTs);
+  return q;
+}
+function load(quiet) {
+  var my = ++seq;
+  if (!quiet) skeleton();
+  lastTs = null; hasMore = true; loadingMore = false;
+  return api(queryStr())
+    .then(function (rows) {
+      if (my !== seq) return null;
+      render(rows);
+      return rows;
+    })
     .catch(function (e) {
+      if (my !== seq) return;
       list.innerHTML = '<div class="empty"><div class="big">📡</div><p>连不上服务器</p>' +
         '<p>可能是网络问题，切一下网络再点右上角刷新</p>' +
-        '<small>' + esc(String(e.message).slice(0, 90)) + '</small></div>';
+        '<small>' + esc(friendly(e.message)) + '</small></div>';
     });
+}
+function more() {
+  if (!hasMore || loadingMore || !lastTs) return;
+  loadingMore = true;
+  var my = seq;
+  api(queryStr())
+    .then(function (rows) {
+      loadingMore = false;
+      if (my !== seq) return;
+      appendRows(rows || []);
+    })
+    .catch(function () { loadingMore = false; });
 }
 function clearImg() { blob = null; pv.style.display = 'none'; pvimg.src = ''; file.value = ''; }
 
@@ -444,7 +554,7 @@ function openVip() {
       renderVmode();
       toast('👑 墙主模式已开启');
     })
-    .catch(function () { toast('口令不对', 2500); });
+    .catch(function (e) { toast(friendly(e.message), 2500); });
 }
 var tapN = 0, tapT = null;
 $('brand').addEventListener('click', function () {
@@ -470,6 +580,16 @@ chipsEl.addEventListener('click', function (e) {
   pickTag = (pickTag === e.target.dataset.k) ? '' : e.target.dataset.k;
   buildChips();
 });
+function keyActivate(el) {
+  el.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (!e.target.dataset || e.target.dataset.k === undefined) return;
+    e.preventDefault();
+    e.target.click();
+  });
+}
+keyActivate(tabsEl);
+keyActivate(chipsEl);
 txt.addEventListener('input', function () { count.textContent = txt.value.length + '/500'; });
 pick.addEventListener('click', function () { if (!busy) file.click(); });
 pvc.addEventListener('click', clearImg);
@@ -514,9 +634,7 @@ send.addEventListener('click', function () {
       return load(true);
     })
     .catch(function (e) {
-      var m = String(e.message);
-      try { var j = JSON.parse(m); if (j.message) m = j.message; } catch (x) {}
-      toast('失败：' + m.slice(0, 60), 3500);
+      toast('失败：' + friendly(e.message), 3500);
     })
     .then(function () { busy = false; send.textContent = '发布'; });
 });
@@ -556,14 +674,19 @@ list.addEventListener('click', function (e) {
   }
   if (t.dataset && t.dataset.share !== undefined) {
     var text = t.dataset.share;
+    var link = location.origin + location.pathname + (t.dataset.pid ? '#p=' + t.dataset.pid : '');
     if (navigator.share) {
-      navigator.share({ title: '山高校园墙', text: text, url: location.origin + location.pathname }).catch(function () {});
+      navigator.share({ title: '山高校园墙', text: text, url: link }).catch(function () {});
     } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(text + ' ' + location.href).then(function () { toast('已复制'); }).catch(function () { toast('复制失败'); });
+      navigator.clipboard.writeText(text + ' ' + link).then(function () { toast('已复制'); }).catch(function () { toast('复制失败'); });
     } else { toast('长按复制地址分享'); }
   }
 });
 list.addEventListener('keydown', function (e) {
+  var tg = e.target;
+  if ((e.key === 'Enter' || e.key === ' ') && tg.getAttribute && tg.getAttribute('role') === 'button') {
+    e.preventDefault(); tg.click(); return;
+  }
   if (e.key === 'Enter' && e.target.dataset && e.target.dataset.input) {
     e.preventDefault();
     var pid = e.target.dataset.input;
@@ -571,6 +694,14 @@ list.addEventListener('keydown', function (e) {
     if (box) sendComment(pid, box);
   }
 });
+function keyClick(el) {
+  el.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+  });
+}
+keyClick($('refresh'));
+keyClick($('pick'));
+$('viewimg').setAttribute('alt', '放大后的图片');
 viewer.addEventListener('click', function () { viewer.className = ''; viewimg.src = ''; });
 $('pok').addEventListener('click', function () {
   var b = this.dataset.body || '';
@@ -596,13 +727,20 @@ nick.addEventListener('change', function () {
 buildTabs();
 buildChips();
 renderVmode();
+var themeMq = syncTheme();
+if (themeMq && themeMq.addEventListener) themeMq.addEventListener('change', syncTheme);
+else if (themeMq && themeMq.addListener) themeMq.addListener(syncTheme);
 loadNotice();
 loadPopup();
 load();
+window.addEventListener('hashchange', jumpHash);
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('./sw.js').catch(function () {});
+}
 
 fetch(SB + '/rest/v1/visits', {
   method: 'POST',
-  headers: { 'apikey': KEY, 'Content-Type': 'application/json', 'Prefer': 'return:minimal' === '' ? '' : 'return=minimal' },
+  headers: { 'apikey': KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
   body: JSON.stringify({ vid: VID })
 }).catch(function () {});
 </script>
