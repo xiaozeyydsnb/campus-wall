@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>校园墙</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f6f8;font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;color:#1a1a1a;padding:12px 12px 40px}
+h1{font-size:17px;margin:6px 4px 14px}
+.box{background:#fff;border-radius:14px;padding:12px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+textarea{width:100%;min-height:72px;border:0;outline:0;font:inherit;background:transparent;resize:vertical}
+button{border:0;background:#3b7ddd;color:#fff;font:inherit;padding:9px 18px;border-radius:9px;margin-top:6px}
+button:active{opacity:.7}
+.post{background:#fff;border-radius:14px;padding:12px;margin-top:10px;box-shadow:0 1px 2px rgba(16,24,40,.05);word-break:break-word}
+.post.pending{background:#fffdf9;border:1px solid #f3e6d2}
+.meta{font-size:12px;color:#8a8f99;margin-bottom:6px}
+.tag{font-size:11px;color:#c8853a;margin-left:6px}
+.txt{white-space:pre-wrap}
+.ok{background:none;color:#2f9e6b;padding:0;margin-left:8px;font-size:13px}
+.empty{color:#aaa;text-align:center;padding:36px 0;font-size:14px}
+.tip{font-size:12px;color:#96703a;background:#fff8e8;border-radius:8px;padding:6px 10px;margin-bottom:10px;text-align:center}
+</style></head><body>
+
+<h1>校园墙</h1>
+<div class="tip" id="tip" style="display:none">预览模式：内容不保存，刷新会重置</div>
+
+<div class="box">
+  <textarea id="t" placeholder="说点什么…（匿名）"></textarea>
+  <button onclick="send()">发布</button>
+</div>
+
+<div id="list"></div>
+
+<script>
+var M = {}, GOT = true;
+try { localStorage.setItem('_probe','1'); localStorage.removeItem('_probe'); } catch (e) { GOT = false; }
+function get(k){ if(GOT){ try{return localStorage.getItem(k)}catch(e){} } return M[k]||null; }
+function set(k,v){ M[k]=v; if(GOT){ try{localStorage.setItem(k,v)}catch(e){} } }
+
+var K='cw_v1';
+var posts=[];
+try { posts = JSON.parse(get(K)||'[]') || []; } catch(e) { posts = []; }
+
+function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]}); }
+
+function send(){
+  var el=document.getElementById('t');
+  var v=(el.value||'').replace(/^\s+|\s+$/g,'');
+  if(!v){ alert('先写点东西再发布'); el.focus(); return; }
+  posts.unshift({ id:String(Date.now()), body:v, time:Date.now(), ok:false });
+  set(K, JSON.stringify(posts));
+  el.value='';
+  el.blur();
+  draw();
+  alert('已发布（待通过审核）');
+}
+
+function pass(id){
+  for(var i=0;i<posts.length;i++){ if(posts[i].id===id) posts[i].ok=true; }
+  set(K, JSON.stringify(posts));
+  draw();
+}
+
+function draw(){
+  var h='';
+  if(!posts.length){
+    h='<div class="empty">还没有人发帖，做第一个吧</div>';
+  } else {
+    for(var i=0;i<posts.length;i++){
+      var p=posts[i];
+      h+='<div class="post'+(p.ok?'':' pending')+'">'
+       + '<div class="meta">'+ new Date(p.time).toLocaleString() + (p.ok?'':'<span class="tag">审核中</span>') + '</div>'
+       + '<div class="txt">'+ esc(p.body) +'</div>'
+       + (p.ok?'':'<button class="ok" onclick="pass(\''+p.id+'\')">通过</button>')
+       + '</div>';
+    }
+  }
+  document.getElementById('list').innerHTML=h;
+}
+
+if(!GOT) document.getElementById('tip').style.display='block';
+draw();
+</script>
+</body></html>
