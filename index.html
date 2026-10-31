@@ -174,11 +174,35 @@ body{
 .grab{width:38px;height:4px;border-radius:3px;background:var(--line);margin:4px auto 12px}
 .sheet-head{display:flex;align-items:center;margin-bottom:12px}
 .sheet-head b{font-size:16px;font-weight:800}
-.sheet-head .x{margin-left:auto;width:30px;height:30px;border-radius:50%;background:var(--bg);
+.sheet-head .x{margin-left:auto;width:30px;height:30px;border-radius:50%;background:var(--bg);box-shadow:none;
   color:var(--sub);display:flex;align-items:center;justify-content:center;font-size:15px}
 @keyframes up{from{transform:translate(-50%,100%)}to{transform:translate(-50%,0)}}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 
+.round.cup{background:rgba(255,255,255,.16)}
+#tip{margin-left:auto}
+#refresh{margin-left:6px}
+.tipfoot{display:flex;justify-content:center;padding:22px 0 28px}
+.tipfoot button{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--sub);
+  background:var(--card);border:1px solid var(--line);padding:9px 15px;border-radius:14px;box-shadow:none}
+.tipfoot button:active{color:var(--brand);border-color:var(--brand)}
+.tip-body{max-height:92vh}
+.tipnote{font-size:12.5px;line-height:1.7;color:var(--sub);background:var(--soft);border-radius:14px;
+  padding:11px 13px;margin:0 0 14px}
+.qrbox{background:#fff;border-radius:20px;padding:10px;width:min(232px,64vw);margin:0 auto;
+  box-shadow:0 10px 30px rgba(30,40,90,.12)}
+.qrbox img{width:100%;display:block;border-radius:12px}
+.tiphow{font-size:12px;line-height:1.7;color:var(--faint);text-align:center;margin:12px 0 14px}
+.tipamts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+.tipamts b{font-size:13px;font-weight:700;color:var(--brand);background:var(--soft);
+  padding:8px 14px;border-radius:12px;font-variant-numeric:tabular-nums}
+.tipamts b:active{background:var(--brand);color:#fff}
+.tipbar{display:flex;gap:10px;align-items:center}
+.tipopen{flex:1;text-align:center;font-size:14px;font-weight:700;color:var(--sub);
+  border:1px solid var(--line);border-radius:14px;padding:12px 0;text-decoration:none}
+.tipsave{flex:1;font-size:14px;font-weight:700;color:#fff;padding:12px 0;
+  background:linear-gradient(135deg,var(--brand),var(--brand2))}
+.tipend{font-size:11.5px;color:var(--faint);text-align:center;margin:14px 0 2px}
 .vmode{display:none;align-items:center;gap:8px;font-size:12.5px;color:#8a5a10;background:var(--nb);
   border:1px solid var(--nbline);padding:8px 12px;border-radius:12px;margin-bottom:12px;line-height:1.5}
 .vmode.on{display:flex}
@@ -239,6 +263,7 @@ button:active{opacity:.8}
         <h1>山高校园墙</h1>
         <p class="sub">失物 · 二手 · 表白 · 吐槽 · 求助</p>
       </div>
+      <button class="round cup" id="tip" aria-label="请我喝一杯"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a3 3 0 0 1 0 6h-1"/><path d="M3 8h15v6a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"/><path d="M6 2v3M10 2v3M14 2v3"/></svg></button>
       <button class="round" id="refresh" aria-label="刷新"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"/></svg></button>
     </div>
   </header>
@@ -248,9 +273,27 @@ button:active{opacity:.8}
   <div class="wrap">
     <div class="notice" id="notice"><span class="ni"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a4 4 0 0 1 0 7"/><path d="M18.5 5.5a8 8 0 0 1 0 13"/></svg></span><div class="nt" id="ntext"></div></div>
     <div id="list"></div>
+    <div class="tipfoot"><button id="tip2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a3 3 0 0 1 0 6h-1"/><path d="M3 8h15v6a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"/></svg><span>请作者喝一杯</span></button></div>
   </div>
 
   <button class="fab" id="fab" aria-label="发一条">＋</button>
+</div>
+
+<div class="sheet" id="tipSheet">
+  <div class="mask" id="tipMask"></div>
+  <div class="sheet-body tip-body">
+    <div class="grab"></div>
+    <div class="sheet-head"><b>请我喝一杯</b><button class="x" id="tipClose" aria-label="关闭">×</button></div>
+    <p class="tipnote">完全自愿。不影响上墙、不影响审核、不解锁任何功能 —— 不给钱帖子一样能发，给了钱也不会插队。</p>
+    <div class="qrbox"><img id="qr" src="https://luyanze.pages.dev/assets/wechat-qr.png" alt="微信赞赏码" loading="lazy" referrerpolicy="no-referrer"></div>
+    <p class="tiphow" id="tiphow">手机：长按二维码 → 识别图中二维码<br>电脑：打开微信「扫一扫」对准屏幕</p>
+    <div class="tipamts" id="tipamts"><b data-amt="6.66">6.66</b><b data-amt="8.88">8.88</b><b data-amt="52">52</b><b data-amt="88">88</b></div>
+    <div class="tipbar">
+      <a class="tipopen" href="https://luyanze.pages.dev/" target="_blank" rel="noopener">打开赞赏页</a>
+      <button class="tipsave" id="tipsave">复制 6.66</button>
+    </div>
+    <p class="tipend">这面墙是个人作品，一直免费。你愿意的话，请杯咖啡就行。</p>
+  </div>
 </div>
 
 <div class="sheet" id="sheet">
@@ -685,6 +728,38 @@ function closeSheet() {
 $('fab').addEventListener('click', openSheet);
 $('mask').addEventListener('click', closeSheet);
 $('close').addEventListener('click', closeSheet);
+function openTip() {
+  $('tipSheet').className = 'sheet on';
+  document.body.style.overflow = 'hidden';
+}
+function closeTip() {
+  $('tipSheet').className = 'sheet';
+  document.body.style.overflow = '';
+}
+$('tip').addEventListener('click', openTip);
+$('tip2').addEventListener('click', openTip);
+$('tipMask').addEventListener('click', closeTip);
+$('tipClose').addEventListener('click', closeTip);
+$('qr').addEventListener('error', function () {
+  this.style.display = 'none';
+  $('tiphow').innerHTML = '赞赏码没加载出来，点下面「打开赞赏页」也能付';
+});
+$('tipamts').addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('b[data-amt]') : null;
+  if (!b) return;
+  var v = b.dataset.amt;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(v).then(function () { toast('已复制 ' + v + '，付款时粘贴就行'); })
+      .catch(function () { toast('复制失败，手动输 ' + v); });
+  } else { toast('金额 ' + v + '，付款时手动输入'); }
+});
+$('tipsave').addEventListener('click', function () {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText('6.66').then(function () { toast('已复制 6.66，长按二维码识别后粘贴'); })
+      .catch(function () { toast('长按二维码识别，金额填 6.66 或任意数'); });
+  } else { toast('长按二维码识别，金额填 6.66 或任意数'); }
+});
+
 $('close').addEventListener('keydown', function (e) {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeSheet(); }
 });
@@ -884,7 +959,10 @@ $('refresh').addEventListener('click', function () {
 });
 window.addEventListener('error', function (e) { toast('出错了：' + e.message, 4000); });
 window.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape' && sheetEl.className.indexOf('on') >= 0) closeSheet();
+  if (e.key === 'Escape') {
+    if (sheetEl.className.indexOf('on') >= 0) closeSheet();
+    if ($('tipSheet').className.indexOf('on') >= 0) closeTip();
+  }
 });
 
 try { nick.value = localStorage.getItem('wall_nick') || ''; } catch (e) {}
