@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>校园墙</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,"PingFang SC",sans-serif;background:#f2f3f5;color:#1a1a1a;padding-bottom:30px}
+header{position:sticky;top:0;background:#fff;padding:14px 16px;font-size:18px;font-weight:700;border-bottom:1px solid #eee;display:flex;justify-content:space-between;z-index:5}
+#refresh{font-size:14px;font-weight:400;color:#2b7cff}
+.wrap{padding:12px}
+.box{background:#fff;border-radius:14px;padding:12px;margin-bottom:14px}
+textarea{width:100%;border:0;outline:0;resize:none;font:16px/1.5 inherit;min-height:72px;background:transparent}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+#pick{font-size:14px;color:#2b7cff;padding:8px 4px}
+#count{font-size:12px;color:#ccc}
+button{border:0;border-radius:10px;background:#2b7cff;color:#fff;font-size:15px;padding:10px 20px;font-weight:600}
+button:active{opacity:.7}
+button:disabled{background:#b8c4d6}
+#pv{display:none;position:relative;margin-top:10px}
+#pv img{width:100%;border-radius:10px;display:block}
+#pvc{position:absolute;top:6px;right:6px;width:28px;height:28px;line-height:26px;text-align:center;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:18px}
+.post{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px}
+.meta{font-size:12px;color:#9aa0a6;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.dot{width:24px;height:24px;border-radius:50%;flex:0 0 24px}
+.body{font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.pic{width:100%;border-radius:10px;margin-top:8px;display:block;background:#f0f0f0}
+.tip{text-align:center;color:#bbb;font-size:14px;padding:50px 0;line-height:1.8}
+#toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;font-size:14px;padding:10px 18px;border-radius:20px;opacity:0;transition:.25s;pointer-events:none;z-index:99;max-width:80%}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header><span>校园墙</span><span id="refresh">刷新</span></header>
+<div class="wrap">
+  <div class="box">
+    <textarea id="txt" maxlength="500" placeholder="说点什么…（匿名）"></textarea>
+    <div id="pv"><img id="pvimg"><span id="pvc">×</span></div>
+    <div class="bar">
+      <span id="pick">＋ 图片</span>
+      <span id="count">0/500</span>
+      <button id="send">发布</button>
+    </div>
+    <input type="file" id="file" accept="image/*" style="display:none">
+  </div>
+  <div id="list"><div class="tip">加载中…</div></div>
+</div>
+<div id="toast"></div>
+<script>
+var SB = 'https://gfzatnioffikxmddljis.supabase.co';
+var KEY = 'sb_publishable_NlJVDZQZi2eolG3vYT6Abw_1b3YwCEW';
+
+var txt = document.getElementById('txt');
+var send = document.getElementById('send');
+var list = document.getElementById('list');
+var count = document.getElementById('count');
+var pick = document.getElementById('pick');
+var file = document.getElementById('file');
+var pv = document.getElementById('pv');
+var pvimg = document.getElementById('pvimg');
+var pvc = document.getElementById('pvc');
+var toastEl = document.getElementById('toast');
+var timer, blob = null, busy = false;
+
+function toast(m, ms) {
+  toastEl.textContent = m;
+  toastEl.className = 'on';
+  clearTimeout(timer);
+  timer = setTimeout(function () { toastEl.className = ''; }, ms || 2200);
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function api(path, opt) {
+  opt = opt || {};
+  var h = { 'apikey': KEY, 'Content-Type': 'application/json' };
+  if (opt.prefer) h['Prefer'] = opt.prefer;
+  return fetch(SB + '/rest/v1/' + path, {
+    method: opt.method || 'GET', headers: h,
+    body: opt.body ? JSON.stringify(opt.body) : undefined
+  }).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { throw new Error(t || r.status); });
+    return r.text();
+  }).then(function (t) { return t ? JSON.parse(t) : null; });
+}
+
+function shrink(f, cb) {
+  var u = URL.createObjectURL(f), img = new Image();
+  img.onload = function () {
+    var max = 1280, w = img.width, h = img.height;
+    if (w > max || h > max) { var r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    c.toBlob(function (b) { URL.revokeObjectURL(u); cb(b); }, 'image/jpeg', 0.82);
+  };
+  img.onerror = function () { URL.revokeObjectURL(u); cb(null); };
+  img.src = u;
+}
+
+function upload(b) {
+  var name = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+  return fetch(SB + '/storage/v1/object/wall/' + name, {
+    method: 'POST',
+    headers: { 'apikey': KEY, 'Content-Type': 'image/jpeg' },
+    body: b
+  }).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { throw new Error(t || r.status); });
+    return SB + '/storage/v1/object/public/wall/' + name;
+  });
+}
+
+function ago(iso) {
+  var d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 60) return '刚刚';
+  if (d < 3600) return Math.floor(d / 60) + ' 分钟前';
+  if (d < 86400) return Math.floor(d / 3600) + ' 小时前';
+  if (d < 604800) return Math.floor(d / 86400) + ' 天前';
+  var t = new Date(iso);
+  return (t.getMonth() + 1) + '月' + t.getDate() + '日';
+}
+function hue(s) {
+  var h = 0; s = String(s || '匿名');
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return h;
+}
+
+function render(rows) {
+  if (!rows || !rows.length) {
+    list.innerHTML = '<div class="tip">还没有人发帖<br>做第一个吧</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < rows.length; i++) {
+    var p = rows[i];
+    html += '<div class="post"><div class="meta">' +
+      '<span class="dot" style="background:hsl(' + hue(p.nick) + ',62%,66%)"></span>' +
+      '<b>' + esc(p.nick) + '</b><span>' + ago(p.created_at) + '</span></div>';
+    if (p.body) html += '<div class="body">' + esc(p.body) + '</div>';
+    if (p.image_url) html += '<img class="pic" loading="lazy" src="' + esc(p.image_url) + '">';
+    html += '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function load(quiet) {
+  if (!quiet) list.innerHTML = '<div class="tip">加载中…</div>';
+  return api('posts?select=id,created_at,nick,body,image_url&order=created_at.desc&limit=100')
+    .then(function (rows) { render(rows); })
+    .catch(function (e) {
+      list.innerHTML = '<div class="tip">加载失败<br><span style="font-size:12px;color:#e55">' +
+        esc(String(e.message).slice(0, 150)) + '</span></div>';
+    });
+}
+
+function clearImg() {
+  blob = null; pv.style.display = 'none'; pvimg.src = ''; file.value = '';
+}
+
+txt.addEventListener('input', function () { count.textContent = txt.value.length + '/500'; });
+pick.addEventListener('click', function () { if (!busy) file.click(); });
+pvc.addEventListener('click', clearImg);
+
+file.addEventListener('change', function () {
+  var f = file.files && file.files[0];
+  if (!f) return;
+  toast('处理图片中…', 1200);
+  shrink(f, function (b) {
+    if (!b) { toast('这张图读不出来，换一张'); return; }
+    blob = b;
+    pvimg.src = URL.createObjectURL(b);
+    pv.style.display = 'block';
+  });
+});
+
+send.addEventListener('click', function () {
+  if (busy) return;
+  var v = txt.value.trim();
+  if (!v && !blob) { toast('写点字或者加张图'); return; }
+  busy = true; send.disabled = true;
+  send.textContent = blob ? '传图中' : '发送中';
+  (blob ? upload(blob) : Promise.resolve(null))
+    .then(function (url) {
+      send.textContent = '发送中';
+      return api('posts', {
+        method: 'POST', prefer: 'return=minimal',
+        body: { nick: '匿名', body: v, image_url: url }
+      });
+    })
+    .then(function () {
+      txt.value = ''; count.textContent = '0/500'; clearImg();
+      toast('发出去了'); return load(true);
+    })
+    .catch(function (e) {
+      toast('失败：' + String(e.message).slice(0, 60), 3500);
+    })
+    .then(function () {
+      busy = false; send.disabled = false; send.textContent = '发布';
+    });
+});
+
+document.getElementById('refresh').addEventListener('click', function () {
+  toast('刷新中'); load(true).then(function () { toast('已刷新', 900); });
+});
+window.addEventListener('error', function (e) { toast('出错了：' + e.message, 4000); });
+load();
+</script>
+</body>
+</html>
