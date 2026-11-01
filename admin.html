@@ -43,6 +43,17 @@ button{border:0;border-radius:11px;font-family:inherit;font-size:15px;font-weigh
 .tabs{display:flex;gap:8px;margin-bottom:12px}
 .tabs span{flex:1;text-align:center;padding:10px;border-radius:11px;background:var(--card);color:var(--sub);font-size:14px}
 .tabs span.on{background:var(--blue);color:#fff}
+.search{display:flex;gap:8px;margin-bottom:10px}
+.search input{flex:1;background:#0b0d10;border:1px solid var(--line);color:var(--text);
+  border-radius:11px;padding:10px 12px;font:14px/1.4 inherit;outline:0}
+.search input:focus{border-color:var(--blue)}
+.search button{flex:0 0 auto;background:var(--blue);color:#fff;padding:10px 16px;border-radius:11px;font-size:14px}
+.search .clr{background:#262a31;color:var(--sub)}
+.pager{display:flex;align-items:center;gap:10px;margin:4px 0 18px}
+.pager button{flex:1;background:var(--card);color:var(--text);border:1px solid var(--line);
+  padding:11px;border-radius:11px;font-size:14px;box-shadow:none}
+.pager button:disabled{opacity:.4}
+.pager span{font-size:12.5px;color:var(--sub);white-space:nowrap;font-variant-numeric:tabular-nums}
 .post{background:var(--card);border-radius:14px;padding:14px;margin-bottom:10px}
 .meta{font-size:12px;color:var(--sub);margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .meta b{color:var(--text);font-weight:600}
@@ -92,7 +103,17 @@ button{border:0;border-radius:11px;font-family:inherit;font-size:15px;font-weigh
       </div>
     </div>
     <div class="tabs"><span data-t="pending" class="on">待审</span><span data-t="published">已发布</span></div>
+    <div class="search">
+      <input id="kw" placeholder="搜正文 / 昵称 / 帖子号，直接回车" autocomplete="off" enterkeyhint="search">
+      <button id="find">搜</button>
+      <button id="clr" class="clr">清空</button>
+    </div>
     <div id="list"></div>
+    <div class="pager">
+      <button id="prev">上一页</button>
+      <span id="pg">—</span>
+      <button id="next">下一页</button>
+    </div>
   </div>
 </div>
 <div id="toast"></div>
@@ -101,6 +122,7 @@ var SB = 'https://gfzatnioffikxmddljis.supabase.co';
 var KEY = 'sb_publishable_NlJVDZQZi2eolG3vYT6Abw_1b3YwCEW';
 var $ = function (i) { return document.getElementById(i); };
 var pw = '', cur = 'pending', timer;
+var kw = '', off = 0, lim = 20, total = 0;
 
 function toast(m, ms) {
   var t = $('toast'); t.textContent = m; t.className = 'on';
@@ -214,7 +236,7 @@ var TAGN = { lost: '失物', deal: '二手', love: '表白', rant: '吐槽', hel
 function render(rows) {
   var box = $('list');
   if (!rows || !rows.length) {
-    box.innerHTML = '<div class="empty">' + (cur === 'pending' ? '没有待审的，干净' : '还没有已发布的帖子') + '</div>';
+    box.innerHTML = '<div class="empty">' + (kw ? '没找到「' + esc(kw) + '」' : (cur === 'pending' ? '没有待审的，干净' : '还没有已发布的帖子')) + '</div>';
     return;
   }
   var h = '';
@@ -232,24 +254,61 @@ function render(rows) {
   }
   box.innerHTML = h;
 }
+function pager() {
+  var from = total ? (off + 1) : 0;
+  var to = Math.min(off + lim, total);
+  $('pg').textContent = from + '–' + to + ' / ' + total;
+  $('prev').disabled = off <= 0;
+  $('next').disabled = off + lim >= total;
+}
 function load() {
   $('list').innerHTML = '<div class="empty">加载中…</div>';
-  rpc(cur).then(render).catch(function (e) {
+  fetch(SB + '/rest/v1/rpc/admin_list', {
+    method: 'POST',
+    headers: { 'apikey': KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ s: pw, act: cur, kw: kw || null, off: off, lim: lim })
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
+      return t ? JSON.parse(t) : null;
+    });
+  }).then(function (d) {
+    if (!d || !d.rows) { render(d || []); total = (d && d.length) || 0; pager(); return; }
+    total = d.total || 0;
+    if (off >= total && off > 0) { off = Math.max(0, off - lim); return load(); }
+    render(d.rows);
+    pager();
+  }).catch(function (e) {
     $('list').innerHTML = '<div class="empty">' + esc(friendly(e.message)) + '</div>';
+    $('pg').textContent = '—';
   });
 }
 $('go').addEventListener('click', function () {
   pw = $('pw').value.trim();
   if (!pw) { toast('先输口令'); return; }
   try { sessionStorage.setItem('wall_pw', pw); } catch (e) {}
-  rpc('pending').then(function (rows) {
-    $('gate').style.display = 'none';
-    $('main').style.display = 'block';
-    render(rows);
+  $('gate').style.display = 'none';
+  $('main').style.display = 'block';
+  fetch(SB + '/rest/v1/rpc/admin_list', {
+    method: 'POST',
+    headers: { 'apikey': KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ s: pw, act: 'pending', kw: null, off: 0, lim: lim })
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
+      return t ? JSON.parse(t) : null;
+    });
+  }).then(function (d) {
+    cur = 'pending'; off = 0; kw = ''; $('kw').value = '';
+    total = (d && d.total) || 0;
+    render((d && d.rows) || []);
+    pager();
     loadNotice();
     loadPopup();
     loadStats();
   }).catch(function (e) {
+    $('main').style.display = 'none';
+    $('gate').style.display = 'block';
     toast(friendly(e.message) === '未知错误' ? '口令不对或没建好' : friendly(e.message), 3000);
   });
 });
@@ -295,9 +354,25 @@ document.querySelectorAll('.tabs span').forEach(function (s) {
     document.querySelectorAll('.tabs span').forEach(function (x) { x.className = ''; });
     s.className = 'on';
     cur = s.dataset.t;
+    off = 0;
     load();
   });
 });
+function doSearch() {
+  kw = ($('kw').value || '').trim();
+  off = 0;
+  load();
+}
+$('find').addEventListener('click', doSearch);
+$('clr').addEventListener('click', function () {
+  $('kw').value = ''; kw = ''; off = 0; load();
+});
+$('kw').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+});
+$('prev').addEventListener('click', function () { off = Math.max(0, off - lim); load(); });
+$('next').addEventListener('click', function () { off = off + lim; load(); });
+
 $('list').addEventListener('click', function (e) {
   var t = e.target;
   if (!t.dataset || !t.dataset.a) return;
