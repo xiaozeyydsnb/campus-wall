@@ -67,6 +67,18 @@ body{
   padding:11px 22px 10px 16px;scrollbar-width:none;background:var(--bg);
   border-bottom:1px solid transparent;transition:border-color .2s}
 .tabs.stuck{border-color:var(--line)}
+.hds{position:sticky;top:0;z-index:26;background:var(--bg);padding:10px 16px 0;transition:box-shadow .2s,border-color .2s;border-bottom:1px solid transparent}
+.hds.stuck{border-bottom-color:var(--line);box-shadow:0 8px 20px rgba(16,24,40,.05)}
+.hds .tabs{position:static;top:auto;z-index:auto;padding:0 0 10px}
+.sbar{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0 12px;height:42px;margin-bottom:10px;transition:border-color .18s,box-shadow .18s}
+.sbar:focus-within{border-color:rgba(79,109,245,.55);box-shadow:0 0 0 3px rgba(79,109,245,.12)}
+.sic{flex:0 0 auto;color:var(--muted);display:flex}
+.sbar input{flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:14px;color:var(--text);font-family:inherit}
+.sbar input::placeholder{color:var(--muted)}
+.sbar input::-webkit-search-cancel-button{display:none}
+.qx{display:none;flex:0 0 auto;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:0;box-shadow:none;background:var(--bg);color:var(--muted);font-size:14px;line-height:1;padding:0}
+.sbar.on .qx{display:flex}
+.sbar.on{background:var(--card)}
 .tabs::-webkit-scrollbar{display:none}
 .tabs b{flex:0 0 auto;font-size:13px;font-weight:600;padding:7px 15px;border-radius:14px;
   background:var(--card);color:var(--sub);white-space:nowrap;border:1px solid var(--line);
@@ -114,6 +126,9 @@ body{
 .act.on{color:var(--brand);background:var(--soft)}
 .act svg{display:block;opacity:.9}
 .act.r{margin-left:auto}
+.act.lk.on{color:#ef4b6b}
+.act.lk.on svg{fill:currentColor;stroke:currentColor}
+.act.vw{pointer-events:none;cursor:default;gap:5px;font-size:12.5px}
 
 /* ---------- 评论 ---------- */
 .clist{display:block}
@@ -268,7 +283,14 @@ button:active{opacity:.8}
     </div>
   </header>
 
-  <div class="tabs" id="tabs"></div>
+  <div class="hds" id="hds">
+    <div class="sbar" id="sbar">
+      <span class="sic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg></span>
+      <input id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="搜索帖子内容、昵称或 #编号" aria-label="搜索帖子">
+      <button class="qx" id="qc" type="button" aria-label="清空搜索">×</button>
+    </div>
+    <div class="tabs" id="tabs"></div>
+  </div>
 
   <div class="wrap">
     <div class="notice" id="notice"><span class="ni"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a4 4 0 0 1 0 7"/><path d="M18.5 5.5a8 8 0 0 1 0 13"/></svg></span><div class="nt" id="ntext"></div></div>
@@ -334,6 +356,9 @@ var FON = { lost: '#c47a2c', deal: '#2f8f5b', love: '#d4567e', rant: '#5a6f96', 
 
 var ICO_CHAT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.6a8.5 8.5 0 0 1-9.1 8.5 9 9 0 0 1-3.5-.7L3 21l1.4-4.1A8.5 8.5 0 0 1 12 3.1a8.5 8.5 0 0 1 9 8.5z"/></svg>';
 var ICO_DEL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>';
+var ICO_HEART = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.3s-7.6-4.6-7.6-9.6a4.4 4.4 0 0 1 7.6-3 4.4 4.4 0 0 1 7.6 3c0 5-7.6 9.6-7.6 9.6z"/></svg>';
+var ICO_CROWN = '<svg viewBox="0 0 24 24" width="19" height="19" fill="#4a3200" stroke="none"><path d="M3 8.4l3.6 2.4L12 4.6l5.4 6.2L21 8.4v9.2a1.4 1.4 0 0 1-1.4 1.4H4.4A1.4 1.4 0 0 1 3 17.6z"/></svg>';
+var ICO_EYE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 12S5.5 5.5 12 5.5 22.2 12 22.2 12 18.5 18.5 12 18.5 1.8 12 1.8 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 var ICO_SHARE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 3.5v11"/><path d="m8 7.5 4-4 4 4"/></svg>';
 
 var $ = function (id) { return document.getElementById(id); };
@@ -343,6 +368,7 @@ var nick = $('nick'), toastEl = $('toast'), viewer = $('viewer'), viewimg = $('v
 var tabsEl = $('tabs'), chipsEl = $('chips'), sheetEl = $('sheet'), heroEl = $('hero');
 var timer, blob = null, busy = false, cur = '', pickTag = '', seenMem = '';
 var PAGE = 20, seen = {}, lastTs = null, hasMore = true, loadingMore = false, seq = 0, sentinel = null;
+var kw = '', kwTimer = null;
 /* 只在本机记录"我发过哪些 id"：服务端不回传 dev，所以删除按钮只对这些 id 出现 */
 function mineGet(k) { try { return JSON.parse(localStorage.getItem('wall_mine_' + k) || '[]'); } catch (e) { return []; } }
 function mineSet(k, a) { try { localStorage.setItem('wall_mine_' + k, JSON.stringify(a.slice(-300))); } catch (e) {} }
@@ -493,10 +519,12 @@ function postHtml(p) {
   var n = p.nick || '匿名';
   var long = p.body && p.body.length > 120;
   var cnt = p.comments_count || 0;
+  var lk = p.like_count || 0;
+  var vw = p.view_count || 0;
   return '<article class="post' + (p.vip ? ' vip' : '') + '" data-post="' + p.id + '">' +
     '<div class="head">' +
       (p.vip
-        ? '<div class="ava crown" style="background:linear-gradient(135deg,#f7d774,#e0a83c)">👑</div>'
+        ? '<div class="ava crown" style="background:linear-gradient(135deg,#f7d774,#e0a83c)">' + ICO_CROWN + '</div>'
         : '<div class="ava" style="background:' + grad(n) + '">' + esc(n.slice(0, 1)) + '</div>') +
       '<div class="who"><b' + (p.vip ? ' class="gold"' : '') + '>' + esc(n) + '</b>' +
         '<span>' + ago(p.created_at) + '</span></div>' +
@@ -508,8 +536,10 @@ function postHtml(p) {
     (long ? '<div class="more" data-expand="1">展开全文</div>' : '') +
     (p.image_url ? '<img class="pic" loading="lazy" decoding="async" alt="附图" src="' + esc(p.image_url) + '" data-img="' + esc(p.image_url) + '">' : '') +
     '<div class="acts">' +
+      '<button class="act lk' + (mineHas('l', p.id) ? ' on' : '') + '" data-like="' + p.id + '" aria-label="点赞">' + ICO_HEART + '<span>' + (lk ? lk : '赞') + '</span></button>' +
       '<button class="act" data-cmt="' + p.id + '">' + ICO_CHAT + '<span>评论' + (cnt ? ' ' + cnt : '') + '</span></button>' +
-      '<button class="act r" data-share="' + esc((p.body || '').slice(0, 80)) + '" data-pid="' + p.id + '">' + ICO_SHARE + '<span>转发</span></button>' +
+      '<span class="act vw" aria-label="浏览">' + ICO_EYE + '<span>' + vw + '</span></span>' +
+      '<button class="act r" data-share="' + esc((p.body || '').slice(0, 80)) + '" data-pid="' + p.id + '" aria-label="转发">' + ICO_SHARE + '</button>' +
     '</div>' +
     '<div class="cbox" data-box="' + p.id + '"><div class="inner">' +
       '<div class="clist" data-list="' + p.id + '"></div>' +
@@ -567,6 +597,11 @@ function render(rows) {
   dropSentinel();
   seen = {}; lastTs = null; hasMore = true;
   if (!rows || !rows.length) {
+    if (kw) {
+      list.innerHTML = '<div class="empty"><div class="big">🔍</div><p>没搜到「' + esc(kw) + '」</p>' +
+        '<p>换个词试试，或者干脆自己贴一条</p><button class="ghost" id="emptySend">去发一条</button></div>';
+      return;
+    }
     var t = cur ? NAME[cur] : '';
     list.innerHTML = '<div class="empty"><div class="big">🪧</div>' +
       (t ? '<p>「' + t + '」这一栏还空着</p><p>你可以第一个贴上去</p>'
@@ -582,6 +617,7 @@ function render(rows) {
   fixClamp();
   jumpHash();
   syncMore();
+  watchViews();
 }
 function appendRows(rows) {
   dropSentinel();
@@ -596,6 +632,7 @@ function appendRows(rows) {
   if (h) list.insertAdjacentHTML('beforeend', h);
   fixClamp();
   syncMore();
+  watchViews();
 }
 function loadComments(pid, box) {
   var l = box.querySelector('[data-list]');
@@ -646,9 +683,23 @@ function sendComment(pid, box) {
     });
 }
 function queryStr() {
-  var q = 'posts?select=id,created_at,nick,body,image_url,tag,vip,comments_count' +
+  var q = 'posts?select=id,created_at,nick,body,image_url,tag,vip,comments_count,like_count,view_count' +
           '&status=eq.published&order=created_at.desc&limit=' + PAGE;
   if (cur) q += '&tag=eq.' + encodeURIComponent(cur);
+  if (kw) {
+    if (/^[0-9]{1,9}$/.test(kw)) q += '&id=eq.' + kw;
+    else {
+      var ws = kw.replace(/[,()*%$\\]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 3);
+      if (ws.length === 1) {
+        var k = ws[0];
+        q += '&or=(body.ilike.*' + encodeURIComponent(k) + '*,nick.ilike.*' + encodeURIComponent(k) + '*)';
+      } else if (ws.length > 1) {
+        var andB = ws.map(function (w) { return 'body.ilike.*' + encodeURIComponent(w) + '*'; }).join(',');
+        var andN = ws.map(function (w) { return 'nick.ilike.*' + encodeURIComponent(w) + '*'; }).join(',');
+        q += '&or=(and(' + andB + '),and(' + andN + '))';
+      }
+    }
+  }
   if (lastTs) q += '&created_at=lt.' + encodeURIComponent(lastTs);
   return q;
 }
@@ -785,6 +836,31 @@ function keyActivate(el) {
   });
 }
 keyActivate(tabsEl);
+
+(function wireSearch() {
+  var qEl = $('q'), qcEl = $('qc'), bar = $('sbar'), hd = $('hds');
+  function sync() { bar.classList.toggle('on', !!qEl.value.trim()); }
+  function commit(force) {
+    var v = qEl.value.trim();
+    if (v === kw && !force) return;
+    kw = v;
+    sync();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    load();
+  }
+  qEl.addEventListener('input', function () {
+    sync();
+    clearTimeout(kwTimer);
+    kwTimer = setTimeout(function () { commit(false); }, 400);
+  });
+  qEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(kwTimer); commit(true); qEl.blur(); }
+    if (e.key === 'Escape') { qEl.value = ''; clearTimeout(kwTimer); commit(true); }
+  });
+  qcEl.addEventListener('click', function () {
+    qEl.value = ''; clearTimeout(kwTimer); commit(true); qEl.focus();
+  });
+})();
 keyActivate(chipsEl);
 txt.addEventListener('input', function () { count.textContent = txt.value.length + '/500'; });
 pick.addEventListener('click', function () { if (!busy) file.click(); });
@@ -836,10 +912,62 @@ send.addEventListener('click', function () {
     .then(function () { busy = false; send.textContent = '发布'; });
 });
 
+var viewIO = null, viewSeen = {};
+function watchViews() {
+  if (!window.IntersectionObserver) return;
+  if (!viewIO) {
+    viewIO = new IntersectionObserver(function (ents) {
+      for (var i = 0; i < ents.length; i++) {
+        var en = ents[i];
+        if (!en.isIntersecting) continue;
+        var el = en.target;
+        var id = el && el.dataset ? el.dataset.post : null;
+        if (!id) continue;
+        viewIO.unobserve(el);
+        if (viewSeen[id]) continue;
+        viewSeen[id] = 1;
+        api('rpc/bump_view', { method: 'POST', body: { p_id: Number(id), p_dev: VID } })
+          .then(function (r) {
+            if (!r || !r.count) return;
+            var sp = el.querySelector('.vw span');
+            if (sp) sp.textContent = r.count;
+          })
+          .catch(function () {});
+      }
+    }, { threshold: 0.55 });
+  }
+  var nodes = list.querySelectorAll('.post[data-post]:not([data-vw])');
+  for (var k = 0; k < nodes.length; k++) {
+    nodes[k].setAttribute('data-vw', '1');
+    viewIO.observe(nodes[k]);
+  }
+}
+
 list.addEventListener('click', function (e) {
   var t = e.target;
 
   if (t.id === 'emptySend') { openSheet(); return; }
+
+  var lk = t.closest ? t.closest('[data-like]') : null;
+  if (lk) {
+    if (lk.dataset.busy) return;
+    lk.dataset.busy = '1';
+    var lid = Number(lk.dataset.like);
+    api('rpc/toggle_like', { method: 'POST', body: { p_id: lid, p_dev: VID } })
+      .then(function (r) {
+        delete lk.dataset.busy;
+        if (!r) return;
+        if (r.liked) { lk.classList.add('on'); mineAdd('l', lid); }
+        else { lk.classList.remove('on'); mineDrop('l', lid); }
+        var sp = lk.querySelector('span');
+        if (sp) sp.textContent = r.count ? r.count : '赞';
+      })
+      .catch(function (err) {
+        delete lk.dataset.busy;
+        toast(friendly(err.message), 2600);
+      });
+    return;
+  }
   if (t.dataset && t.dataset.expand) {
     var b = t.previousElementSibling;
     if (b) { b.classList.remove('clamp'); t.style.display = 'none'; }
@@ -974,6 +1102,7 @@ window.addEventListener('scroll', function () {
   var y = window.scrollY || document.documentElement.scrollTop;
   heroEl.classList.toggle('small', y > 34);
   tabsEl.classList.toggle('stuck', y > 96);
+    var hd = $('hds'); if (hd) hd.classList.toggle('stuck', y > 40);
 }, { passive: true });
 
 buildTabs();
